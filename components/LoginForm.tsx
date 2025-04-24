@@ -1,35 +1,32 @@
 import { useState } from 'react'
+import type { ReactElement } from 'react'
 import { supabase } from '@/lib/supabase'
 
-export default function LoginForm() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
+// 管理员登录表单组件
+const LoginForm: React.FC = (): ReactElement => {
+  const [email, setEmail] = useState<string>('')
+  const [password, setPassword] = useState<string>('')
+  const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
+  const [success, setSuccess] = useState<boolean>(false)
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
     setLoading(true)
     setError(null)
     setSuccess(false)
-    
-    console.log('尝试登录:', email) // 调试用，不记录密码
-    
+    // 生产环境不输出敏感信息
+    // console.log('尝试登录:', email)
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
       })
-      
-      console.log('登录响应:', { data, error }) // 调试用
-      
+      // console.log('登录响应:', { data, error })
       if (error) throw error
-      
       setSuccess(true)
       // 登录成功后，模态窗口会自动关闭，因为用户状态变更
-    } catch (err) {
-      console.error('登录错误:', err)
+    } catch (err: any) {
       setError(err instanceof Error ? err.message : '登录失败，请检查邮箱和密码')
     } finally {
       setLoading(false)
@@ -57,7 +54,6 @@ export default function LoginForm() {
             required
           />
         </div>
-
         <div className="mb-6">
           <label className="block text-gray-700 mb-2">密码</label>
           <input
@@ -68,9 +64,7 @@ export default function LoginForm() {
             required
           />
         </div>
-
         {error && <div className="text-red-500 mb-4 p-2 bg-red-50 rounded">{error}</div>}
-
         <button
           type="submit"
           className="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition"
@@ -82,3 +76,5 @@ export default function LoginForm() {
     </div>
   )
 }
+
+export default LoginForm

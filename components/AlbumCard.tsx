@@ -1,6 +1,7 @@
 import Image from 'next/image'
 import { LOCAL_STORAGE_URL } from '@/lib/localStorage'
 import Link from 'next/link'
+import type { ReactElement } from 'react'
 
 interface Album {
   id: string
@@ -14,7 +15,8 @@ interface AlbumCardProps {
   album: Album
 }
 
-export default function AlbumCard({ album }: AlbumCardProps) {
+// 相册卡片组件
+const AlbumCard: React.FC<AlbumCardProps> = ({ album }): ReactElement => {
   return (
     <Link href={`/albums/${album.id}`}>
       <div className="bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-300 overflow-hidden cursor-pointer">
@@ -22,7 +24,7 @@ export default function AlbumCard({ album }: AlbumCardProps) {
           {album.cover_photo ? (
             <Image
               src={`${LOCAL_STORAGE_URL}/photos/${album.cover_photo}`}
-              alt={album.name}
+              alt={album.name || '相册封面'}
               fill
               className="object-cover"
               sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, 33vw"
@@ -72,4 +74,6 @@ export default function AlbumCard({ album }: AlbumCardProps) {
       </div>
     </Link>
   )
-} 
+}
+
+export default AlbumCard 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import type { ReactElement } from 'react'
 import { supabase } from '@/lib/supabase'
 
 interface Album {
@@ -12,13 +13,14 @@ interface AddToAlbumModalProps {
   photoId: string
 }
 
-export default function AddToAlbumModal({ show, onClose, photoId }: AddToAlbumModalProps) {
+// 添加到相册的模态窗口组件
+const AddToAlbumModal: React.FC<AddToAlbumModalProps> = ({ show, onClose, photoId }): ReactElement | null => {
   const [albums, setAlbums] = useState<Album[]>([])
   const [selectedAlbumId, setSelectedAlbumId] = useState<string>('')
-  const [loading, setLoading] = useState(true)
-  const [adding, setAdding] = useState(false)
+  const [loading, setLoading] = useState<boolean>(true)
+  const [adding, setAdding] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
+  const [success, setSuccess] = useState<boolean>(false)
 
   useEffect(() => {
     if (show) {
@@ -28,62 +30,48 @@ export default function AddToAlbumModal({ show, onClose, photoId }: AddToAlbumMo
     }
   }, [show])
 
-  const fetchAlbums = async () => {
+  const fetchAlbums = async (): Promise<void> => {
     setLoading(true)
-    
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) throw new Error('未登录')
-
-      // 获取用户的所有相册
       const { data, error } = await supabase
         .from('albums')
         .select('id, name')
         .eq('user_id', session.user.id)
         .order('name')
-
       if (error) throw error
-
       setAlbums(data || [])
-      // 如果有相册，默认选中第一个
       if (data && data.length > 0) {
         setSelectedAlbumId(data[0].id)
       }
-    } catch (err) {
+    } catch (err: any) {
       setError(err instanceof Error ? err.message : '获取相册失败')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
     if (!selectedAlbumId) {
       setError('请选择相册')
       return
     }
-
     setAdding(true)
     setError(null)
     setSuccess(false)
-
     try {
-      // 检查照片是否已经在相册中
       const { count, error: countError } = await supabase
         .from('album_photos')
         .select('*', { count: 'exact', head: true })
         .eq('album_id', selectedAlbumId)
         .eq('photo_id', photoId)
-
       if (countError) throw countError
-
-      // 如果照片已经在相册中，不进行重复添加
       if (count && count > 0) {
         setSuccess(true)
         return
       }
-
-      // 添加照片到相册
       const { error: insertError } = await supabase
         .from('album_photos')
         .insert([
@@ -92,11 +80,9 @@ export default function AddToAlbumModal({ show, onClose, photoId }: AddToAlbumMo
             photo_id: photoId
           }
         ])
-
       if (insertError) throw insertError
-
       setSuccess(true)
-    } catch (err) {
+    } catch (err: any) {
       setError(err instanceof Error ? err.message : '添加到相册失败')
     } finally {
       setAdding(false)
@@ -117,7 +103,6 @@ export default function AddToAlbumModal({ show, onClose, photoId }: AddToAlbumMo
             ×
           </button>
         </div>
-
         {loading ? (
           <div className="flex justify-center py-4">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
@@ -150,10 +135,8 @@ export default function AddToAlbumModal({ show, onClose, photoId }: AddToAlbumMo
                 ))}
               </select>
             </div>
-
             {error && <div className="text-red-500 mb-4">{error}</div>}
             {success && <div className="text-green-500 mb-4">已成功添加到相册</div>}
-
             <div className="flex justify-end space-x-2">
               <button
                 type="button"
@@ -178,4 +161,6 @@ export default function AddToAlbumModal({ show, onClose, photoId }: AddToAlbumMo
       </div>
     </div>
   )
-} 
+}
+
+export default AddToAlbumModal 

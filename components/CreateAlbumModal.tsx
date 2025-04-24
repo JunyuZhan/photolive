@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { ReactElement } from 'react'
 import { supabase } from '@/lib/supabase'
 
 interface CreateAlbumModalProps {
@@ -7,26 +8,24 @@ interface CreateAlbumModalProps {
   onCreated: (albumId: string) => void
 }
 
-export default function CreateAlbumModal({ show, onClose, onCreated }: CreateAlbumModalProps) {
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [isCreating, setIsCreating] = useState(false)
+// 创建相册的模态窗口组件
+const CreateAlbumModal: React.FC<CreateAlbumModalProps> = ({ show, onClose, onCreated }): ReactElement | null => {
+  const [name, setName] = useState<string>('')
+  const [description, setDescription] = useState<string>('')
+  const [isCreating, setIsCreating] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
     if (!name.trim()) {
       setError('请输入相册名称')
       return
     }
-
     setIsCreating(true)
     setError(null)
-
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) throw new Error('未登录')
-
       const { data, error: dbError } = await supabase
         .from('albums')
         .insert([
@@ -38,16 +37,11 @@ export default function CreateAlbumModal({ show, onClose, onCreated }: CreateAlb
         ])
         .select('id')
         .single()
-
       if (dbError) throw dbError
-      
-      // 重置表单
       setName('')
       setDescription('')
-      
-      // 通知创建成功
       onCreated(data.id)
-    } catch (err) {
+    } catch (err: any) {
       setError(err instanceof Error ? err.message : '创建相册失败')
     } finally {
       setIsCreating(false)
@@ -68,7 +62,6 @@ export default function CreateAlbumModal({ show, onClose, onCreated }: CreateAlb
             ×
           </button>
         </div>
-
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
             <label className="block text-gray-700 mb-2">相册名称 *</label>
@@ -79,9 +72,9 @@ export default function CreateAlbumModal({ show, onClose, onCreated }: CreateAlb
               className="w-full p-2 border rounded"
               placeholder="相册名称"
               required
+              maxLength={50}
             />
           </div>
-
           <div className="mb-4">
             <label className="block text-gray-700 mb-2">描述</label>
             <textarea
@@ -90,11 +83,10 @@ export default function CreateAlbumModal({ show, onClose, onCreated }: CreateAlb
               className="w-full p-2 border rounded"
               rows={3}
               placeholder="相册描述（可选）"
+              maxLength={200}
             />
           </div>
-
           {error && <div className="text-red-500 mb-4">{error}</div>}
-
           <div className="flex justify-end space-x-2">
             <button
               type="button"
@@ -116,4 +108,6 @@ export default function CreateAlbumModal({ show, onClose, onCreated }: CreateAlb
       </div>
     </div>
   )
-} 
+}
+
+export default CreateAlbumModal

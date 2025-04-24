@@ -4,31 +4,30 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 
 export default function TestPage() {
-  const [status, setStatus] = useState('测试中...')
-  const [result, setResult] = useState<any>(null)
+  type StatusType = '测试中...' | '连接成功' | '连接失败' | '发生异常'
+  const [status, setStatus] = useState<StatusType>('测试中...')
+  const [result, setResult] = useState<object | null>(null)
 
   useEffect(() => {
-    async function testConnection() {
+    async function testConnection(): Promise<void> {
       try {
         // 测试数据库连接
         const { data, error } = await supabase.from('photos').select('*').limit(1)
-        
         if (error) {
           console.error('数据库连接错误:', error)
           setStatus('连接失败')
-          setResult(error)
+          setResult({ message: error.message, details: error.details })
         } else {
           console.log('数据库连接成功:', data)
           setStatus('连接成功')
           setResult(data)
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('测试过程中出现异常:', err)
         setStatus('发生异常')
-        setResult(err)
+        setResult({ message: err.message || String(err) })
       }
     }
-
     testConnection()
   }, [])
 
