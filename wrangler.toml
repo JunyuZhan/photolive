@@ -1,0 +1,9 @@
+[site]
+bucket = "./.next"
+
+[build]
+command = "npm run build"
+
+[env.production]
+name = "photolive"
+compatibility_date = "2025-04-24" 
