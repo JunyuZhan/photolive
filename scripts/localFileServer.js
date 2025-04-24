@@ -462,7 +462,7 @@ app.use(errorHandler);
 
 // 启动服务器
 app.listen(port, '0.0.0.0', () => {
-  console.log(`本地文件服务器运行在 http://localhost:${port}`);
+  console.log(`文件服务器运行在 http://156.225.24.235:${port}`);
   console.log(`照片存储目录: ${uploadsDir}`);
 });
 

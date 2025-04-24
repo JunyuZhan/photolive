@@ -5,12 +5,13 @@ WORKDIR /app
 # 复制package文件
 COPY package*.json ./
 
-# 仅安装文件服务器所需依赖，减少镜像大小
-RUN npm install --production --only=prod express multer cors
+# 安装文件服务器所需依赖
+RUN npm install --production --only=prod express multer cors pg sharp jimp archiver uuid qrcode dotenv morgan
 
 # 复制文件服务器代码和上传目录
 COPY scripts/localFileServer.js ./scripts/
 RUN mkdir -p uploads
+RUN mkdir -p logs
 
 # 暴露13001端口
 EXPOSE 13001

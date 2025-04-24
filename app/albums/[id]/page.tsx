@@ -140,7 +140,7 @@ function BatchDownloadModal({ show, onClose, photoIds, user }: BatchDownloadModa
   const [loading, setLoading] = useState(false)
   const handleDownload = async () => {
     setLoading(true)
-    const res = await fetch('http://localhost:13001/download-zip', {
+    const res = await fetch('http://156.225.24.235:13001/download-zip', {
       method: 'POST',
       body: JSON.stringify({
         photo_ids: photoIds,

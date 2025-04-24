@@ -1,5 +1,5 @@
 // 本地存储服务配置
-export const LOCAL_STORAGE_URL = 'http://localhost:13001'; // 本地开发服务器地址
+export const LOCAL_STORAGE_URL = 'http://156.225.24.235:13001'; // 文件服务器地址
 
 // 添加带有超时和重试逻辑的存储服务请求函数
 export async function fetchWithRetry(url: string, options?: RequestInit, retries = 3, timeout = 5000) {

@@ -9,6 +9,7 @@ services:
       - "13001:13001"
     volumes:
       - ./uploads:/app/uploads
+      - ./logs:/app/logs
     networks:
       - photolive-network
 
