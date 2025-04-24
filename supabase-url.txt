@@ -1,0 +1,6 @@
+在浏览器中尝试访问以下URL测试连接：
+   
+https://jxmvhszkkvpynktgcj.supabase.co
+
+如果能够打开，说明Supabase项目存在，只是在代码中有连接问题。
+如果无法打开，说明项目URL可能已经变更或项目已被删除。 

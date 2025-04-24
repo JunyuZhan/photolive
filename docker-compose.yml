@@ -1,0 +1,17 @@
+version: '3'
+
+services:
+  photo-storage:
+    build: .
+    container_name: photolive-storage
+    restart: always
+    ports:
+      - "13001:13001"
+    volumes:
+      - ./uploads:/app/uploads
+    networks:
+      - photolive-network
+
+networks:
+  photolive-network:
+    driver: bridge 
