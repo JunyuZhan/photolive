@@ -13,6 +13,25 @@ const QRCode = require('qrcode');
 const dotenv = require('dotenv');
 dotenv.config({ path: path.join(__dirname, '../.env.local') });
 
+// 初始化数据库连接池
+const pool = new Pool({
+  user: process.env.PGUSER,
+  host: process.env.PGHOST,
+  database: process.env.PGDATABASE,
+  password: process.env.PGPASSWORD,
+  port: process.env.PGPORT ? parseInt(process.env.PGPORT) : 5432,
+  ssl: { rejectUnauthorized: false } // Supabase 需要 SSL
+});
+
+// 测试数据库连接
+pool.query('SELECT NOW()', (err, res) => {
+  if (err) {
+    console.error('数据库连接失败:', err);
+  } else {
+    console.log('数据库连接成功:', res.rows[0]);
+  }
+});
+
 // 初始化Express应用
 const app = express();
 const port = 13001;
@@ -24,7 +43,12 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 // 中间件配置
-app.use(cors());
+app.use(cors({
+  origin: '*', // 允许所有域名访问，包括 Vercel 域名
+  methods: ['GET', 'POST', 'DELETE', 'PUT', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
 app.use(express.json());
 app.use(morgan('common', {
   stream: fs.createWriteStream(path.join(__dirname, '../logs/server.log'), { flags: 'a' })
@@ -114,11 +138,16 @@ app.post('/upload', upload.single('file'), async (req, res) => {
     // 1. 查询相册水印参数
     let album = null;
     if (album_id) {
-      const { rows } = await pool.query(
-        'SELECT watermark_type, watermark_text, watermark_image, watermark_opacity, watermark_position, name FROM albums WHERE id = $1',
-        [album_id]
-      );
-      album = rows[0];
+      try {
+        const { rows } = await pool.query(
+          'SELECT watermark_type, watermark_text, watermark_image, watermark_opacity, watermark_position, name FROM albums WHERE id = $1',
+          [album_id]
+        );
+        album = rows[0];
+      } catch (dbError) {
+        console.error('查询相册失败:', dbError);
+        // 数据库错误不影响上传，继续处理
+      }
     }
 
     // 2. 处理水印
@@ -316,13 +345,6 @@ app.post('/download-zip', async (req, res) => {
       return res.status(400).json({ success: false, error: '参数错误' });
     }
     // 查询数据库获取图片路径
-    const pool = new Pool({
-      user: process.env.PGUSER,
-      host: process.env.PGHOST,
-      database: process.env.PGDATABASE,
-      password: process.env.PGPASSWORD,
-      port: process.env.PGPORT ? parseInt(process.env.PGPORT) : 5432,
-    });
     const { rows } = await pool.query('SELECT id, image_path FROM photos WHERE id = ANY($1)', [photo_ids]);
     // 计数+日志
     await pool.query('UPDATE photos SET download_count = download_count + 1 WHERE id = ANY($1)', [photo_ids]);
@@ -404,13 +426,6 @@ app.post('/photos/edit', async (req, res) => {
       return res.status(400).json({ success: false, error: '参数缺失' });
     }
     // 查询原图路径
-    const pool = new Pool({
-      user: process.env.PGUSER,
-      host: process.env.PGHOST,
-      database: process.env.PGDATABASE,
-      password: process.env.PGPASSWORD,
-      port: process.env.PGPORT ? parseInt(process.env.PGPORT) : 5432,
-    });
     const { rows } = await pool.query('SELECT * FROM photos WHERE id = $1', [photo_id]);
     if (!rows[0]) return res.status(404).json({ success: false, error: '照片不存在' });
     const photo = rows[0];
@@ -464,13 +479,4 @@ app.use(errorHandler);
 app.listen(port, '0.0.0.0', () => {
   console.log(`文件服务器运行在 http://156.225.24.235:${port}`);
   console.log(`照片存储目录: ${uploadsDir}`);
-});
-
-const pool = new Pool({
-  user: process.env.PGUSER,
-  host: process.env.PGHOST,
-  database: process.env.PGDATABASE,
-  password: process.env.PGPASSWORD,
-  port: process.env.PGPORT ? parseInt(process.env.PGPORT) : 5432,
-  // ssl: { rejectUnauthorized: false } // 如果用 Supabase，通常需要加上
 }); 
