@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build && npx @cloudflare/next-on-pages build",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "file-server": "node scripts/localFileServer.js"
@@ -30,6 +30,7 @@
     "uuid": "^9.0.1"
   },
   "devDependencies": {
+    "@cloudflare/next-on-pages": "^1.13.12",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
