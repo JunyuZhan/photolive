@@ -36,10 +36,7 @@ npm install
 ```
 NEXT_PUBLIC_SUPABASE_URL=你的Supabase项目URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY=你的Supabase匿名密钥
-PGUSER=数据库用户名
-PGHOST=数据库主机
-PGDATABASE=数据库名
-PGPASSWORD=数据库密码
+
 PGPORT=5432
 ```
 
