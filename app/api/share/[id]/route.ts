@@ -3,8 +3,11 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-export async function GET(request: NextRequest, context: { params: { id: string } }) {
-  const { id } = context.params;
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const { id } = params;
   const accessCode = request.nextUrl.searchParams.get('code') || ''
 
   // 查询分享链接
