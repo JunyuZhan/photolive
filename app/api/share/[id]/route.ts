@@ -5,9 +5,9 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: any
 ) {
-  const { id } = params;
+  const { id } = context.params;
   const accessCode = request.nextUrl.searchParams.get('code') || ''
 
   // 查询分享链接

@@ -36,6 +36,11 @@ npm install
 ```
 NEXT_PUBLIC_SUPABASE_URL=你的Supabase项目URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY=你的Supabase匿名密钥
+PGUSER=数据库用户名
+PGHOST=数据库主机
+PGDATABASE=数据库名
+PGPASSWORD=数据库密码
+PGPORT=5432
 ```
 
 4. 启动文件服务器
@@ -109,3 +114,57 @@ photolive/
 ## 许可证
 
 MIT
+
+## 环境变量配置
+
+请在项目根目录下创建 `.env.local` 文件，内容示例：
+
+```
+NEXT_PUBLIC_SUPABASE_URL=你的Supabase项目URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY=你的Supabase匿名密钥
+PGUSER=数据库用户名
+PGHOST=数据库主机
+PGDATABASE=数据库名
+PGPASSWORD=数据库密码
+PGPORT=5432
+```
+
+- 前端和 API 路由用 `NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- 本地文件服务器用 PG 相关变量连接数据库
+
+## Windows 下依赖清理命令
+
+如需删除 `node_modules` 和 `package-lock.json`，请在 PowerShell 下使用：
+```powershell
+Remove-Item -Recurse -Force node_modules
+Remove-Item -Force package-lock.json
+```
+
+## 批量下载接口
+
+- 路径：`/api/download-zip`
+- 方法：POST
+- 参数：`photo_ids`（数组）
+- 返回：zip 文件流（`application/zip`）
+
+> 注意：为兼容 Next.js 15+，zip 文件会先收集到 Buffer 后再返回，适合中小型批量下载。
+
+## Next.js 15 API 路由类型问题
+
+- Next.js 15.3.1 存在 API Route Handler 类型推断 bug，标准写法如下：
+  ```ts
+  export async function GET(
+    request: NextRequest,
+    { params }: { params: { id: string } }
+  ) { /* ... */ }
+  ```
+- 如遇类型报错，可临时将第二参数类型写为 `any`：
+  ```ts
+  export async function GET(request: NextRequest, context: any) { /* ... */ }
+  ```
+- 等 Next.js 官方修复后再还原为标准写法。
+
+## 其它说明
+
+- 文件服务器支持水印、批量下载、图片编辑等高级功能，详见代码注释。
+- Cloudflare/Vercel 部署时建议清理构建缓存，确保依赖和类型最新。

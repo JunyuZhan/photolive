@@ -22,7 +22,7 @@
     "jimp": "^1.6.0",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
-    "next": "15.3.1",
+    "next": "latest",
     "qrcode": "^1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

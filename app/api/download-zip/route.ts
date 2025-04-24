@@ -22,9 +22,10 @@ export async function POST(req: NextRequest) {
     if (error) {
       return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500 })
     }
-    // 创建zip流
+    // 创建zip流并收集为Buffer
     const archive = archiver('zip', { zlib: { level: 9 } })
-    const passThrough = new Readable().wrap(archive)
+    const chunks: Buffer[] = [];
+    archive.on('data', (chunk) => chunks.push(chunk));
     // 添加文件
     for (const photo of data) {
       const filePath = path.join(uploadsDir, photo.image_path)
@@ -32,9 +33,10 @@ export async function POST(req: NextRequest) {
         archive.file(filePath, { name: path.basename(filePath) })
       }
     }
-    archive.finalize()
-    // 返回zip流
-    return new Response(passThrough, {
+    await archive.finalize();
+    const zipBuffer = Buffer.concat(chunks);
+    // 返回zip buffer
+    return new Response(zipBuffer, {
       status: 200,
       headers: {
         'Content-Type': 'application/zip',
