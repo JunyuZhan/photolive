@@ -10,6 +10,8 @@ const sharp = require('sharp');
 const Jimp = require('jimp');
 const archiver = require('archiver');
 const QRCode = require('qrcode');
+const dotenv = require('dotenv');
+dotenv.config({ path: path.join(__dirname, '../.env.local') });
 
 // 初始化Express应用
 const app = express();
@@ -315,11 +317,11 @@ app.post('/download-zip', async (req, res) => {
     }
     // 查询数据库获取图片路径
     const pool = new Pool({
-      user: '你的数据库用户名',
-      host: '你的数据库主机',
-      database: '你的数据库名',
-      password: '你的数据库密码',
-      port: 5432,
+      user: process.env.PGUSER,
+      host: process.env.PGHOST,
+      database: process.env.PGDATABASE,
+      password: process.env.PGPASSWORD,
+      port: process.env.PGPORT ? parseInt(process.env.PGPORT) : 5432,
     });
     const { rows } = await pool.query('SELECT id, image_path FROM photos WHERE id = ANY($1)', [photo_ids]);
     // 计数+日志
@@ -403,11 +405,11 @@ app.post('/photos/edit', async (req, res) => {
     }
     // 查询原图路径
     const pool = new Pool({
-      user: '你的数据库用户名',
-      host: '你的数据库主机',
-      database: '你的数据库名',
-      password: '你的数据库密码',
-      port: 5432,
+      user: process.env.PGUSER,
+      host: process.env.PGHOST,
+      database: process.env.PGDATABASE,
+      password: process.env.PGPASSWORD,
+      port: process.env.PGPORT ? parseInt(process.env.PGPORT) : 5432,
     });
     const { rows } = await pool.query('SELECT * FROM photos WHERE id = $1', [photo_id]);
     if (!rows[0]) return res.status(404).json({ success: false, error: '照片不存在' });
@@ -465,10 +467,10 @@ app.listen(port, '0.0.0.0', () => {
 });
 
 const pool = new Pool({
-  user: '你的数据库用户名',
-  host: '你的数据库主机',
-  database: '你的数据库名',
-  password: '你的数据库密码',
-  port: 5432,
+  user: process.env.PGUSER,
+  host: process.env.PGHOST,
+  database: process.env.PGDATABASE,
+  password: process.env.PGPASSWORD,
+  port: process.env.PGPORT ? parseInt(process.env.PGPORT) : 5432,
   // ssl: { rejectUnauthorized: false } // 如果用 Supabase，通常需要加上
 }); 
