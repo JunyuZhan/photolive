@@ -3,15 +3,15 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const shareId = params.id
-  const accessCode = req.nextUrl.searchParams.get('code') || ''
+export async function GET(request: Request, context: { params: { id: string } }) {
+  const { id } = context.params;
+  const accessCode = request.nextUrl.searchParams.get('code') || ''
 
   // 查询分享链接
   const { data: link, error } = await supabase
     .from('share_links')
     .select('*')
-    .eq('id', shareId)
+    .eq('id', id)
     .single()
   if (error || !link) {
     return NextResponse.json({ success: false, error: '分享链接不存在' }, { status: 404 })
