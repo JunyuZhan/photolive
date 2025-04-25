@@ -49,7 +49,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
 }));
-app.use(express.json());
 app.use(morgan('common', {
   stream: fs.createWriteStream(path.join(__dirname, '../logs/server.log'), { flags: 'a' })
 }));
@@ -92,8 +91,11 @@ app.use('/photos', express.static(path.join(__dirname, '../uploads')));
 // 配置文件存储
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    // 根据用户ID创建目录
-    const userId = req.body.path.split('/')[0];
+    const filePath = req.body && req.body.path ? req.body.path : '';
+    if (!filePath) {
+      return cb(new Error('缺少 path 字段'));
+    }
+    const userId = filePath.split('/')[0] || 'unknown';
     const uploadPath = path.join(__dirname, '../uploads', userId);
     
     // 确保目录存在
@@ -419,7 +421,7 @@ app.post('/download-zip', async (req, res) => {
 });
 
 // 照片编辑接口
-app.post('/photos/edit', async (req, res) => {
+app.post('/photos/edit', express.json(), async (req, res) => {
   try {
     const { photo_id, edit_type, edit_params, save_as_new } = req.body;
     if (!photo_id || !edit_type) {
