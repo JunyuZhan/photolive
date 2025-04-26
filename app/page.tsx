@@ -249,6 +249,8 @@ export default function Home() {
     }
   })
 
+  console.log('LOCAL_STORAGE_URL:', LOCAL_STORAGE_URL);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-pink-50 flex flex-col">
       <header className="py-6 flex flex-col sm:flex-row justify-between items-center w-full max-w-5xl mx-auto relative">

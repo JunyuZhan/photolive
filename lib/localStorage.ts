@@ -1,5 +1,5 @@
 // 本地存储服务配置
-export const LOCAL_STORAGE_URL = process.env.NEXT_PUBLIC_STORAGE_URL!; // 文件服务器地址
+export const LOCAL_STORAGE_URL = process.env.NEXT_PUBLIC_LOCAL_STORAGE_URL || 'https://file.albertzhan.sbs';
 
 // 添加带有超时和重试逻辑的存储服务请求函数
 export async function fetchWithRetry(url: string, options?: RequestInit, retries = 3, timeout = 5000) {
