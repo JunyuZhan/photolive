@@ -10,9 +10,11 @@ services:
     volumes:
       - ./uploads:/app/uploads
       - ./logs:/app/logs
+    env_file:
+      - .env.local
     networks:
       - photolive-network
 
 networks:
   photolive-network:
-    driver: bridge 
+    driver: bridge
