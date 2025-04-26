@@ -264,9 +264,12 @@ app.post('/upload', (req, res) => {
       path: req.file.path
     });
     
-    // 处理path可能是数组的情况
+    // 处理path可能是数组的情况，优先选带 uuid 的那一项
     let filePath = req.body.path;
-    if (Array.isArray(filePath)) filePath = filePath[0];
+    if (Array.isArray(filePath)) {
+      // 选第一个不是 anonymous 开头的
+      filePath = filePath.find(p => typeof p === 'string' && !p.startsWith('anonymous/')) || filePath[0];
+    }
     filePath = String(filePath);
     
     try {

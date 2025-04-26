@@ -11,7 +11,7 @@ import Link from 'next/link'
 import { User } from '@supabase/supabase-js'
 import * as exifr from 'exifr'
 import Image from 'next/image'
-import PhotoFilterPanel from '../components/PhotoFilterPanel'
+import Header from "../components/Header"
 
 interface Photo {
   id: string
@@ -24,18 +24,30 @@ interface Photo {
   taken_at?: string
 }
 
-interface PhotoFilter {
-  tags: string[]
-  photographer: string
-  taken_from: string
-  taken_to: string
-  created_from: string
-  created_to: string
-  keyword: string
-}
-
 // 管理员ID（请替换为你的Supabase用户ID）
 const ADMIN_UID = '32ca5c88-7477-4035-ba7f-dbf7327c915c';
+
+const INACTIVITY_LIMIT = 30 * 60 * 1000 // 30分钟
+function useAutoLogout(onLogout: () => void) {
+  const lastActive = useRef(Date.now())
+  useEffect(() => {
+    const update = () => lastActive.current = Date.now()
+    window.addEventListener('mousemove', update)
+    window.addEventListener('keydown', update)
+    window.addEventListener('click', update)
+    const timer = setInterval(() => {
+      if (Date.now() - lastActive.current > INACTIVITY_LIMIT) {
+        onLogout()
+      }
+    }, 60 * 1000)
+    return () => {
+      window.removeEventListener('mousemove', update)
+      window.removeEventListener('keydown', update)
+      window.removeEventListener('click', update)
+      clearInterval(timer)
+    }
+  }, [onLogout])
+}
 
 export default function Home() {
   const [photos, setPhotos] = useState<Photo[]>([])
@@ -44,15 +56,11 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [showLogin, setShowLogin] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [sortBy, setSortBy] = useState<'created_at' | 'taken_at'>('created_at')
-  const [filters, setFilters] = useState<PhotoFilter>({
-    tags: [], photographer: '', taken_from: '', taken_to: '', created_from: '', created_to: '', keyword: ''
-  })
-  const [allTags, setAllTags] = useState<string[]>([])
   const [showNotify, setShowNotify] = useState(false)
   const [notifications, setNotifications] = useState<any[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const notifyRef = useRef<HTMLDivElement>(null)
+  const [albums, setAlbums] = useState<any[]>([])
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined
@@ -75,36 +83,14 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
-    // 获取所有标签
-    const fetchTags = async () => {
-      const { data, error } = await supabase.from('photos').select('tags')
-      if (!error && data) {
-        const tagSet = new Set<string>()
-        data.forEach((row: any) => {
-          if (Array.isArray(row.tags)) row.tags.forEach((t: string) => tagSet.add(t))
-        })
-        setAllTags(Array.from(tagSet))
-      }
-    }
-    fetchTags()
-  }, [])
-
-  useEffect(() => {
     const fetchFilteredPhotos = async () => {
       const params = new URLSearchParams()
-      filters.tags.forEach(tag => params.append('tags', tag))
-      if (filters.photographer) params.append('photographer', filters.photographer)
-      if (filters.taken_from) params.append('taken_from', filters.taken_from)
-      if (filters.taken_to) params.append('taken_to', filters.taken_to)
-      if (filters.created_from) params.append('created_from', filters.created_from)
-      if (filters.created_to) params.append('created_to', filters.created_to)
-      if (filters.keyword) params.append('keyword', filters.keyword)
       const res = await fetch(`/api/photos/search?${params.toString()}`)
       const data = await res.json()
       setPhotos(data.photos || [])
     }
     fetchFilteredPhotos()
-  }, [filters])
+  }, [])
 
   const fetchPhotos = async (): Promise<void> => {
     try {
@@ -228,6 +214,27 @@ export default function Home() {
     return () => document.removeEventListener('mousedown', handler)
   }, [showNotify])
 
+  useEffect(() => {
+    // 拉取公开相册
+    const fetchAlbums = async () => {
+      const { data, error } = await supabase
+        .from('albums')
+        .select('id, name, description, cover_photo_id, event_start, event_end, location, is_public, photos:cover_photo_id(image_path)')
+        .eq('is_public', true)
+        .order('event_start', { ascending: false })
+      if (!error && data) setAlbums(data)
+      else setAlbums([])
+    }
+    fetchAlbums()
+  }, [])
+
+  useAutoLogout(() => {
+    if (user) {
+      supabase.auth.signOut()
+      window.location.reload()
+    }
+  })
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-white">
@@ -240,10 +247,14 @@ export default function Home() {
   const isAdmin = user?.id === ADMIN_UID
 
   const sortedPhotos = [...photos].sort((a, b) => {
-    if (sortBy === 'taken_at') {
-      const aTime = a.taken_at ? new Date(a.taken_at).getTime() : new Date(a.created_at).getTime()
-      const bTime = b.taken_at ? new Date(b.taken_at).getTime() : new Date(b.created_at).getTime()
+    if (a.taken_at && b.taken_at) {
+      const aTime = new Date(a.taken_at).getTime()
+      const bTime = new Date(b.taken_at).getTime()
       return bTime - aTime
+    } else if (a.taken_at) {
+      return 1
+    } else if (b.taken_at) {
+      return -1
     } else {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     }
@@ -253,153 +264,55 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-pink-50 flex flex-col">
-      <header className="py-6 flex flex-col sm:flex-row justify-between items-center w-full max-w-5xl mx-auto relative">
-        <div className="flex flex-col items-center sm:items-start">
-          <Image src="/logo.svg" width={64} height={64} alt="logo" className="mb-2" />
-          <h1 className="text-2xl sm:text-3xl font-bold mb-1 text-gray-800">PhotoLive · 个人照片墙</h1>
-          <p className="text-gray-500 text-base sm:text-lg">记录生活每一刻</p>
-        </div>
-        <div className="mt-4 sm:mt-0 flex gap-2 items-center">
-          {!isLoggedIn && (
-            <button
-              onClick={handleLogin}
-              className="bg-blue-500 text-white px-4 py-2 rounded-md transition text-base active:scale-95"
-            >
-              管理员登录
-            </button>
-          )}
-          {isLoggedIn && (
-            <button
-              onClick={() => supabase.auth.signOut()}
-              className="text-gray-600 bg-gray-100 px-4 py-2 rounded-md transition text-base active:scale-95"
-            >
-              退出
-            </button>
-          )}
-          {isLoggedIn && (
-            <div className="relative ml-2">
-              <button className="relative" onClick={() => setShowNotify(v => !v)}>
-                <svg className="w-7 h-7 text-gray-500 hover:text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5">{unreadCount}</span>
-                )}
-              </button>
-              {showNotify && (
-                <div ref={notifyRef} className="absolute right-0 mt-2 w-80 bg-white shadow-lg rounded-lg z-50 border border-gray-200">
-                  <div className="flex justify-between items-center px-4 py-2 border-b">
-                    <span className="font-bold text-gray-700">通知</span>
-                    <button className="text-xs text-blue-500 hover:underline" onClick={markAllRead}>全部标为已读</button>
-                  </div>
-                  <div className="max-h-80 overflow-y-auto divide-y">
-                    {notifications.length === 0 ? (
-                      <div className="p-4 text-gray-400 text-center">暂无通知</div>
-                    ) : notifications.map(n => (
-                      <div key={n.id} className={`px-4 py-3 text-sm ${n.is_read ? 'bg-white' : 'bg-blue-50 font-semibold'}`}>
-                        <div className="mb-1 text-gray-800">{n.content}</div>
-                        <div className="text-xs text-gray-400 flex justify-between">
-                          <span>{n.type}</span>
-                          <span>{new Date(n.created_at).toLocaleString()}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+      <Header user={user} onLogin={handleLogin} onLogout={async () => { await supabase.auth.signOut(); window.location.reload(); }} />
+      <main className="max-w-6xl mx-auto px-2 w-full flex-1">
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold mb-4">精选相册</h2>
+          {albums.length === 0 ? (
+            <div className="text-gray-400 text-center py-8">暂无公开相册</div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+              {albums.map(album => (
+                <div key={album.id} className="bg-white rounded-lg shadow hover:shadow-xl transition p-4 flex flex-col items-center">
+                  {album.photos && album.photos.image_path ? (
+                    <Image src={album.photos.image_path.startsWith('http') ? album.photos.image_path : `${LOCAL_STORAGE_URL}/photos/${album.photos.image_path}`} width={240} height={160} alt={album.name} className="rounded mb-2 object-cover" />
+                  ) : (
+                    <div className="w-[240px] h-[160px] bg-gray-100 rounded mb-2 flex items-center justify-center text-gray-400">无封面</div>
+                  )}
+                  <div className="font-semibold text-lg mb-1">{album.name}</div>
+                  <div className="text-gray-500 text-sm mb-1">{album.event_start ? new Date(album.event_start).toLocaleDateString() : ''} {album.location || ''}</div>
+                  <div className="text-gray-400 text-xs line-clamp-2">{album.description}</div>
                 </div>
-              )}
+              ))}
             </div>
           )}
-        </div>
-      </header>
-      <div className="flex justify-center mb-4">
-        {isAdmin && (
-          <button
-            onClick={() => setShowUpload(true)}
-            className="px-6 py-3 bg-blue-500 text-white rounded-full shadow-lg text-lg font-semibold hover:bg-blue-600 transition w-full max-w-xs sm:w-auto"
-          >
-            上传照片
-          </button>
-        )}
-      </div>
-      <div className="flex flex-col sm:flex-row items-center justify-center gap-2 mb-4">
-        <label htmlFor="sort-select" className="text-base text-gray-700">排序方式：</label>
-        <select
-          id="sort-select"
-          value={sortBy}
-          onChange={e => setSortBy(e.target.value as 'created_at' | 'taken_at')}
-          className="border rounded px-2 py-1 text-base focus:outline-none focus:ring-2 focus:ring-blue-300"
-        >
-          <option value="created_at">按上传时间</option>
-          <option value="taken_at">按拍摄时间</option>
-        </select>
-        <nav className="mt-2 sm:mt-0">
-          <ul className="flex flex-wrap space-x-4 text-base">
-            <li>
-              <span className="font-semibold">照片</span>
-            </li>
-            {isLoggedIn && (
-              <li>
-                <Link href="/albums" className="text-blue-500 hover:underline">
-                  相册
-                </Link>
-              </li>
-            )}
-          </ul>
-        </nav>
-      </div>
-      <div className="w-full max-w-5xl mx-auto px-2">
-        <PhotoFilterPanel value={filters} onChange={setFilters} allTags={allTags} />
-      </div>
-      {errorMsg && (
-        <div className="mb-4 text-red-600 bg-red-50 border border-red-200 rounded p-2 text-base max-w-md mx-auto">
-          {errorMsg}
-        </div>
-      )}
-      <main className="flex-1 flex flex-col items-center justify-center px-2 w-full max-w-5xl mx-auto">
-        {loading ? (
-          <div className="text-center py-12 text-gray-400 text-lg">加载中...</div>
-        ) : photos.length === 0 ? (
-          <div className="flex flex-col items-center mt-10">
-            <Image src="/empty.svg" width={192} height={192} alt="empty" className="mb-4" />
-            <p className="text-lg text-gray-400">暂无照片，快来上传你的第一张照片吧！</p>
-          </div>
-        ) : (
+        </section>
+        <section>
+          <h2 className="text-2xl font-bold mb-4">最新照片</h2>
           <PhotoGrid photos={sortedPhotos} showAddToAlbum={isAdmin} />
+        </section>
+        {!isLoggedIn && (
+          <div className="text-center mt-12 text-gray-500 text-lg">
+            登录后可上传和管理照片，体验更多功能！
+          </div>
         )}
       </main>
-      {showLogin && !isLoggedIn && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 z-50">
-          <div className="bg-white rounded-md sm:rounded-lg p-4 sm:p-6 w-full max-w-full sm:max-w-md mx-2">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg sm:text-xl font-bold">管理员登录</h2>
-              <button onClick={closeLoginModal} className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-gray-700 rounded-full transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-300" aria-label="关闭">
-                <span className="text-2xl leading-none">×</span>
-              </button>
-            </div>
-            <LoginForm />
-          </div>
-        </div>
-      )}
-      {isAdmin && (
-        <UploadModal 
-          show={showUpload}
-          onClose={() => setShowUpload(false)}
-          onUpload={handleUpload}
-        />
-      )}
       <footer className="w-full text-center text-gray-400 text-sm py-4 mt-8 border-t border-gray-100 bg-white/60">
-        © 2024 PhotoLive. 版权所有
+        © 2024 PhotoLive. JunyuZhan版权所有
         <span className="mx-2">|</span>
         <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener" className="hover:underline">
           京ICP备12345678号
         </a>
-        {/* 如有公安备案号可加下面一行 */}
-        {/* <span className="mx-2">|</span>
-        <a href="http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=11010502000001" target="_blank" rel="noopener" className="hover:underline">
-          <img src="/beian.png" style={{display:'inline',verticalAlign:'middle',height:'16px',marginRight:'2px'}} alt="公安备案" />
-          京公网安备 11010502000001号
-        </a> */}
       </footer>
+      {/* 登录/注册弹窗 */}
+      {showLogin && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={closeLoginModal}>
+          <div className="bg-white rounded-lg p-6 w-full max-w-xs shadow-lg relative" onClick={e => e.stopPropagation()}>
+            <LoginForm />
+            <button className="mt-4 w-full text-gray-400 hover:text-gray-600" onClick={closeLoginModal}>关闭</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

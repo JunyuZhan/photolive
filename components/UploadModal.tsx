@@ -1,11 +1,14 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { ReactElement } from 'react'
+import { supabase } from '@/lib/supabase'
 
 interface UploadModalProps {
   show: boolean
   onClose: () => void
   onUpload: (file: File, title: string, description: string) => Promise<void>
 }
+
+const MAX_STORAGE = 1024 * 1024 * 1024 // 1GB
 
 // 上传照片的模态窗口组件
 const UploadModal: React.FC<UploadModalProps> = ({ show, onClose, onUpload }): ReactElement | null => {
@@ -17,6 +20,34 @@ const UploadModal: React.FC<UploadModalProps> = ({ show, onClose, onUpload }): R
   const [success, setSuccess] = useState<boolean>(false)
   const [current, setCurrent] = useState<number>(0)
   const [failedFiles, setFailedFiles] = useState<File[]>([])
+  const [usedStorage, setUsedStorage] = useState(0)
+  const [loadingStorage, setLoadingStorage] = useState(false)
+
+  useEffect(() => {
+    if (show) {
+      fetchUsedStorage()
+    }
+  }, [show])
+
+  const fetchUsedStorage = async () => {
+    setLoadingStorage(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) return setUsedStorage(0)
+      const { data, error } = await supabase
+        .from('photos')
+        .select('file_size')
+        .eq('user_id', session.user.id)
+      if (!error && data) {
+        const used = data.reduce((sum, p) => sum + (p.file_size || 0), 0)
+        setUsedStorage(used)
+      } else {
+        setUsedStorage(0)
+      }
+    } finally {
+      setLoadingStorage(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
@@ -90,6 +121,9 @@ const UploadModal: React.FC<UploadModalProps> = ({ show, onClose, onUpload }): R
 
   if (!show) return null
 
+  const percent = Math.round((usedStorage / MAX_STORAGE) * 100)
+  const overLimit = usedStorage >= MAX_STORAGE
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 z-50">
       <div className="bg-white rounded-md sm:rounded-lg p-4 sm:p-6 w-full max-w-full sm:max-w-md mx-2 shadow-lg select-none">
@@ -159,6 +193,16 @@ const UploadModal: React.FC<UploadModalProps> = ({ show, onClose, onUpload }): R
             <div className="mb-4 text-green-600">全部上传成功！</div>
           )}
           {error && <div className="text-red-500 mb-4">{error}</div>}
+          <div className="mb-4">
+            <div className="flex justify-between text-xs text-gray-500 mb-1">
+              <span>已用空间：{(usedStorage / 1024 / 1024).toFixed(1)} MB / 1024 MB</span>
+              <span>{percent}%</span>
+            </div>
+            <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div className={`h-full transition-all duration-300 ${overLimit ? 'bg-red-500' : 'bg-blue-400'}`} style={{ width: `${percent > 100 ? 100 : percent}%` }}></div>
+            </div>
+            {overLimit && <div className="text-xs text-red-500 mt-1">已超出存储空间限制，请删除部分照片后再上传</div>}
+          </div>
           <div className="flex flex-col sm:flex-row justify-end sm:space-x-2 space-y-2 sm:space-y-0 mt-2">
             <button
               type="button"
@@ -181,7 +225,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ show, onClose, onUpload }): R
               <button
                 type="submit"
                 className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition text-base"
-                disabled={isUploading}
+                disabled={isUploading || overLimit}
               >
                 {isUploading ? '上传中...' : '上传'}
               </button>

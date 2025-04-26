@@ -1,6 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { ReactElement } from 'react'
 import { supabase } from '@/lib/supabase'
+import { DatePicker, Cascader } from 'antd'
+import type { RangePickerProps } from 'antd/es/date-picker'
+import dayjs, { Dayjs } from 'dayjs'
+// @ts-ignore
+import provinceCityOptions from '../data/province-city.json'
 
 interface CreateAlbumModalProps {
   show: boolean
@@ -14,11 +19,39 @@ const CreateAlbumModal: React.FC<CreateAlbumModalProps> = ({ show, onClose, onCr
   const [description, setDescription] = useState<string>('')
   const [isCreating, setIsCreating] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
+  const [eventRange, setEventRange] = useState<[Dayjs | null, Dayjs | null]>([null, null])
+  const [location, setLocation] = useState('')
+  const [coverPhotoId, setCoverPhotoId] = useState('')
+  const [userPhotos, setUserPhotos] = useState<{id: string, title: string, image_path: string}[]>([])
+
+  useEffect(() => {
+    if (show) {
+      fetchUserPhotos()
+    }
+  }, [show])
+
+  const fetchUserPhotos = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) return
+      const { data, error } = await supabase
+        .from('photos')
+        .select('id, title, image_path')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false })
+      if (!error && data) setUserPhotos(data)
+      else setUserPhotos([])
+    } catch { setUserPhotos([]) }
+  }
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
     if (!name.trim()) {
       setError('请输入相册名称')
+      return
+    }
+    if (!eventRange[0] || !eventRange[1]) {
+      setError('请选择活动时间')
       return
     }
     setIsCreating(true)
@@ -32,7 +65,11 @@ const CreateAlbumModal: React.FC<CreateAlbumModalProps> = ({ show, onClose, onCr
           {
             user_id: session.user.id,
             name: name.trim(),
-            description: description.trim() || null
+            description: description.trim() || null,
+            event_start: eventRange[0]?.toISOString() || null,
+            event_end: eventRange[1]?.toISOString() || null,
+            location: location.trim() || null,
+            cover_photo_id: coverPhotoId || null
           }
         ])
         .select('id')
@@ -40,6 +77,9 @@ const CreateAlbumModal: React.FC<CreateAlbumModalProps> = ({ show, onClose, onCr
       if (dbError) throw dbError
       setName('')
       setDescription('')
+      setEventRange([null, null])
+      setLocation('')
+      setCoverPhotoId('')
       onCreated(data.id)
     } catch (err: any) {
       setError(err instanceof Error ? err.message : '创建相册失败')
@@ -86,6 +126,46 @@ const CreateAlbumModal: React.FC<CreateAlbumModalProps> = ({ show, onClose, onCr
               maxLength={200}
             />
           </div>
+          <div className="mb-4">
+            <label className="block text-gray-700 mb-2">活动时间（直播期间）</label>
+            <div className="flex items-center gap-2">
+              <DatePicker.RangePicker
+                showTime
+                value={eventRange}
+                onChange={(v: RangePickerProps['value']) => setEventRange(v as [Dayjs, Dayjs])}
+                getPopupContainer={(trigger: HTMLElement) => document.body}
+                className="w-full"
+                format="YYYY/MM/DD HH:mm"
+                placeholder={["开始时间", "结束时间"]}
+              />
+            </div>
+          </div>
+          <div className="mb-4">
+            <label className="block text-gray-700 mb-2">地点</label>
+            <Cascader
+              options={provinceCityOptions}
+              value={location ? location.split(' ') : []}
+              onChange={(val) => setLocation((val as (string | number | null)[]).filter(Boolean).join(' '))}
+              placeholder="请选择省市"
+              className="w-full"
+              allowClear
+            />
+          </div>
+          {userPhotos.length > 0 && (
+            <div className="mb-4">
+              <label className="block text-gray-700 mb-2">选择封面照片（可选）</label>
+              <select
+                value={coverPhotoId}
+                onChange={e => setCoverPhotoId(e.target.value)}
+                className="w-full p-2 border rounded"
+              >
+                <option value="">不设置封面</option>
+                {userPhotos.map(photo => (
+                  <option key={photo.id} value={photo.id}>{photo.title || photo.image_path}</option>
+                ))}
+              </select>
+            </div>
+          )}
           {error && <div className="text-red-500 mb-4">{error}</div>}
           <div className="flex justify-end space-x-2">
             <button

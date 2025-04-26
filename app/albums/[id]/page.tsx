@@ -7,6 +7,9 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { User } from '@supabase/supabase-js'
 import { useRef } from 'react'
+import Header from "@/components/Header"
+import Layout from '@/components/Layout'
+import UploadModal from '@/components/UploadModal'
 
 interface Photo {
   id: string
@@ -347,6 +350,7 @@ export default function AlbumPage() {
   const [showBatchDownload, setShowBatchDownload] = useState(false)
   const [showCollaborators, setShowCollaborators] = useState(false)
   const [showLogs, setShowLogs] = useState(false)
+  const [showUploadModal, setShowUploadModal] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -448,12 +452,38 @@ export default function AlbumPage() {
     setAlbum(albumData)
   }
 
+  // 上传照片逻辑
+  const handleUpload = async (file: File, title: string, description: string) => {
+    // 1. 上传图片到 supabase storage
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) throw new Error('未登录')
+    const userId = session.user.id
+    const ext = file.name.split('.').pop()
+    const fileName = `${userId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+    const { data: uploadData, error: uploadError } = await supabase.storage.from('photos').upload(fileName, file)
+    if (uploadError) throw uploadError
+    // 2. 写入 photos 表
+    const { data: photoData, error: photoError } = await supabase.from('photos').insert([
+      {
+        user_id: userId,
+        title,
+        description,
+        image_path: fileName,
+        file_size: file.size
+      }
+    ]).select('id').single()
+    if (photoError) throw photoError
+    // 3. 关联到当前相册
+    await supabase.from('album_photos').insert([
+      { album_id: albumId, photo_id: photoData.id }
+    ])
+    // 4. 刷新照片列表
+    await fetchAlbumPhotos()
+    return photoData.id
+  }
+
   if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    )
+    return <div className="flex justify-center items-center min-h-screen"> <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div> </div>
   }
 
   if (error || !album) {
@@ -474,121 +504,131 @@ export default function AlbumPage() {
   }
 
   return (
-    <div className="container max-w-full px-2 sm:px-4 py-4 sm:py-8 mx-auto">
-      <header className="mb-6 sm:mb-8">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0">
-          <h1 className="text-2xl sm:text-3xl font-bold">{album.name}</h1>
-          <div className="flex items-center gap-2">
-            <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={() => setShowShare(true)}>生成外链</button>
-            <button className="bg-green-500 text-white px-4 py-2 rounded" onClick={() => setShowCollaborators(true)}>协作者管理</button>
-            <button className="bg-gray-700 text-white px-4 py-2 rounded" onClick={() => setShowLogs(true)}>统计/日志</button>
-            <Link href="/albums" className="text-blue-500 hover:underline text-base">返回相册列表</Link>
+    <Layout user={user} onLogout={async () => { await supabase.auth.signOut(); window.location.reload(); }}>
+      <div>
+        <header className="mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0">
+            <h1 className="text-2xl sm:text-3xl font-bold">{album.name}</h1>
+            <div className="flex items-center gap-2">
+              <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={() => setShowUploadModal(true)}>上传照片</button>
+              <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={() => setShowShare(true)}>生成外链</button>
+              <button className="bg-green-500 text-white px-4 py-2 rounded" onClick={() => setShowCollaborators(true)}>协作者管理</button>
+              <button className="bg-gray-700 text-white px-4 py-2 rounded" onClick={() => setShowLogs(true)}>统计/日志</button>
+              <Link href="/albums" className="text-blue-500 hover:underline text-base">返回相册列表</Link>
+            </div>
           </div>
-        </div>
-        {album.description && (
-          <p className="text-gray-600 mt-2 text-base">{album.description}</p>
-        )}
-        <div className="mt-2 text-sm text-gray-500">
-          {photos.length} 张照片
-        </div>
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <label htmlFor="layout-select" className="text-base text-gray-700">排列方式：</label>
-          <select
-            id="layout-select"
-            value={layout}
-            onChange={e => setLayout(e.target.value as 'grid' | 'masonry')}
-            className="border rounded px-2 py-1 text-base focus:outline-none focus:ring-2 focus:ring-blue-300"
-          >
-            <option value="grid">网格</option>
-            <option value="masonry">流瀑式</option>
-          </select>
-          <label htmlFor="sort-select" className="text-base text-gray-700 ml-2">排序方式：</label>
-          <select
-            id="sort-select"
-            value={sortBy}
-            onChange={e => setSortBy(e.target.value as 'created_at' | 'taken_at')}
-            className="border rounded px-2 py-1 text-base focus:outline-none focus:ring-2 focus:ring-blue-300"
-          >
-            <option value="created_at">按上传时间</option>
-            <option value="taken_at">按拍摄时间</option>
-          </select>
-        </div>
-        <nav className="mt-4">
-          <ul className="flex flex-wrap space-x-4 text-base">
-            <li>
-              <Link href="/" className="text-blue-500 hover:underline">
-                照片
-              </Link>
-            </li>
-            <li>
-              <Link href="/albums" className="text-blue-500 hover:underline">
-                相册
-              </Link>
-            </li>
-            <li>
-              <span className="font-semibold">{album.name}</span>
-            </li>
-          </ul>
-        </nav>
-      </header>
-      {error && (
-        <div className="mb-4 text-red-600 bg-red-50 border border-red-200 rounded p-2 text-base">
-          {error}
-        </div>
-      )}
-      {selected.length > 0 && (
-        <div className="my-4 flex gap-2">
-          <button className="bg-green-500 text-white px-4 py-2 rounded" onClick={() => setShowBatchDownload(true)}>
-            批量下载（{selected.length}）
-          </button>
-          <button className="bg-gray-200 text-gray-700 px-3 py-2 rounded" onClick={() => setSelected([])}>
-            取消选择
-          </button>
-        </div>
-      )}
-      {photos.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-md sm:rounded-lg">
-          <p className="text-gray-600 mb-4">此相册中还没有照片</p>
-          <Link
-            href="/"
-            className="inline-block bg-blue-500 text-white px-4 py-2 rounded-md sm:rounded transition text-base active:scale-95"
-          >
-            去添加照片
-          </Link>
-        </div>
-      ) : (
-        <PhotoGrid 
-          photos={sortedPhotos} 
-          albumId={albumId}
-          onPhotoDeleted={fetchAlbumPhotos}
-          onPhotoRemovedFromAlbum={handlePhotoRemovedFromAlbum}
-          layout={layout}
-          selectable
-          selected={selected}
-          onSelect={setSelected}
-          renderActions={photo => (
-            album && (
-              <button
-                className={`px-2 py-1 rounded text-xs font-semibold shadow transition-all ${album.cover_photo_id === photo.id ? 'bg-blue-500 text-white cursor-default' : 'bg-white text-blue-500 border border-blue-500 hover:bg-blue-50'}`}
-                disabled={album.cover_photo_id === photo.id}
-                onClick={() => handleSetCover(photo.id)}
-              >
-                {album.cover_photo_id === photo.id ? '当前封面' : '设为封面'}
-              </button>
-            )
+          {album.description && (
+            <p className="text-gray-600 mt-2 text-base">{album.description}</p>
           )}
-        />
-      )}
-      {showShare && user && <ShareModal show={showShare} onClose={() => setShowShare(false)} albumId={album.id} user={user as User} />}
-      {showBatchDownload && user && (
-        <BatchDownloadModal show={showBatchDownload} onClose={() => setShowBatchDownload(false)} photoIds={selected} user={user as { id: string; email: string }} />
-      )}
-      {showCollaborators && (
-        <CollaboratorModal show={showCollaborators} onClose={() => setShowCollaborators(false)} albumId={album.id} />
-      )}
-      {showLogs && (
-        <LogModal show={showLogs} onClose={() => setShowLogs(false)} albumId={album.id} />
-      )}
-    </div>
+          <div className="mt-2 text-sm text-gray-500">
+            {photos.length} 张照片
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <label htmlFor="layout-select" className="text-base text-gray-700">排列方式：</label>
+            <select
+              id="layout-select"
+              value={layout}
+              onChange={e => setLayout(e.target.value as 'grid' | 'masonry')}
+              className="border rounded px-2 py-1 text-base focus:outline-none focus:ring-2 focus:ring-blue-300"
+            >
+              <option value="grid">网格</option>
+              <option value="masonry">流瀑式</option>
+            </select>
+            <label htmlFor="sort-select" className="text-base text-gray-700 ml-2">排序方式：</label>
+            <select
+              id="sort-select"
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value as 'created_at' | 'taken_at')}
+              className="border rounded px-2 py-1 text-base focus:outline-none focus:ring-2 focus:ring-blue-300"
+            >
+              <option value="created_at">按上传时间</option>
+              <option value="taken_at">按拍摄时间</option>
+            </select>
+          </div>
+          <nav className="mt-4">
+            <ul className="flex flex-wrap space-x-4 text-base">
+              <li>
+                <Link href="/" className="text-blue-500 hover:underline">
+                  照片
+                </Link>
+              </li>
+              <li>
+                <Link href="/albums" className="text-blue-500 hover:underline">
+                  相册
+                </Link>
+              </li>
+              <li>
+                <span className="font-semibold">{album.name}</span>
+              </li>
+            </ul>
+          </nav>
+        </header>
+        {error && (
+          <div className="mb-4 text-red-600 bg-red-50 border border-red-200 rounded p-2 text-base">
+            {error}
+          </div>
+        )}
+        {selected.length > 0 && (
+          <div className="my-4 flex gap-2">
+            <button className="bg-green-500 text-white px-4 py-2 rounded" onClick={() => setShowBatchDownload(true)}>
+              批量下载（{selected.length}）
+            </button>
+            <button className="bg-gray-200 text-gray-700 px-3 py-2 rounded" onClick={() => setSelected([])}>
+              取消选择
+            </button>
+          </div>
+        )}
+        {photos.length === 0 ? (
+          <div className="text-center py-12 bg-gray-50 rounded-md sm:rounded-lg">
+            <p className="text-gray-600 mb-4">此相册中还没有照片</p>
+            <Link
+              href="/"
+              className="inline-block bg-blue-500 text-white px-4 py-2 rounded-md sm:rounded transition text-base active:scale-95"
+            >
+              去添加照片
+            </Link>
+          </div>
+        ) : (
+          <PhotoGrid 
+            photos={sortedPhotos} 
+            albumId={albumId}
+            onPhotoDeleted={fetchAlbumPhotos}
+            onPhotoRemovedFromAlbum={handlePhotoRemovedFromAlbum}
+            layout={layout}
+            selectable
+            selected={selected}
+            onSelect={setSelected}
+            renderActions={photo => (
+              album && (
+                <button
+                  className={`px-2 py-1 rounded text-xs font-semibold shadow transition-all ${album.cover_photo_id === photo.id ? 'bg-blue-500 text-white cursor-default' : 'bg-white text-blue-500 border border-blue-500 hover:bg-blue-50'}`}
+                  disabled={album.cover_photo_id === photo.id}
+                  onClick={() => handleSetCover(photo.id)}
+                >
+                  {album.cover_photo_id === photo.id ? '当前封面' : '设为封面'}
+                </button>
+              )
+            )}
+          />
+        )}
+        {showShare && user && <ShareModal show={showShare} onClose={() => setShowShare(false)} albumId={album.id} user={user as User} />}
+        {showBatchDownload && user && (
+          <BatchDownloadModal show={showBatchDownload} onClose={() => setShowBatchDownload(false)} photoIds={selected} user={user as { id: string; email: string }} />
+        )}
+        {showCollaborators && (
+          <CollaboratorModal show={showCollaborators} onClose={() => setShowCollaborators(false)} albumId={album.id} />
+        )}
+        {showLogs && (
+          <LogModal show={showLogs} onClose={() => setShowLogs(false)} albumId={album.id} />
+        )}
+        {showUploadModal && (
+          <UploadModal
+            show={showUploadModal}
+            onClose={() => setShowUploadModal(false)}
+            onUpload={handleUpload}
+          />
+        )}
+      </div>
+    </Layout>
   )
 } 
