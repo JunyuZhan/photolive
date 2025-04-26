@@ -1,8 +1,10 @@
-version: '3'
+version: '3.8'
 
 services:
-  photo-storage:
-    build: .
+  photolive-storage:
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: photolive-storage
     restart: always
     ports:
@@ -10,11 +12,20 @@ services:
     volumes:
       - ./uploads:/app/uploads
       - ./logs:/app/logs
-    env_file:
-      - .env.local
-    networks:
-      - photolive-network
-
-networks:
-  photolive-network:
-    driver: bridge
+      - ./.env.local:/app/.env.local:ro
+    environment:
+      - NODE_ENV=production
+      # Supabase数据库配置从.env.local文件自动加载
+    network_mode: "host"  # 使用主机网络模式，直接使用主机的网络栈
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:13001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5" 
