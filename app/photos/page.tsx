@@ -89,8 +89,58 @@ export default function MyPhotosPage() {
 
   const onUpload = () => setShowUploadModal(true)
 
-  const handleUpload = () => {
-    // Implementation of handleUpload function
+  const handleUpload = async (file: File, title: string, description: string): Promise<void> => {
+    try {
+      // 获取用户会话
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) throw new Error('用户未登录')
+      
+      // 生成安全的文件名
+      const fileName = Date.now() + '-' + file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+      const filePath = `${session.user.id}/${fileName}`
+      
+      // 上传到本地服务器
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('path', filePath)
+      formData.append('user_id', session.user.id)
+      
+      const uploadRes = await fetch(`${process.env.NEXT_PUBLIC_LOCAL_STORAGE_URL}/upload`, {
+        method: 'POST',
+        body: formData,
+      })
+      
+      if (!uploadRes.ok) {
+        const error = await uploadRes.json()
+        throw new Error(error.message || '上传失败')
+      }
+      
+      const uploadData = await uploadRes.json()
+      
+      // 保存到数据库
+      const { error } = await supabase.from('photos').insert({
+        user_id: session.user.id,
+        title,
+        description,
+        image_path: filePath,
+        file_size: file.size,
+        is_public: false
+      })
+      
+      if (error) throw error
+      
+      // 刷新照片列表
+      const { data } = await supabase
+        .from('photos')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false })
+      
+      setPhotos(data || [])
+    } catch (err: any) {
+      console.error('上传失败:', err)
+      throw err
+    }
   }
 
   if (loading) {
@@ -164,4 +214,4 @@ export default function MyPhotosPage() {
       </div>
     </Layout>
   )
-} 
+}
