@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase"
 import Image from "next/image"
 import Header from "@/components/Header"
 import Layout from '@/components/Layout'
+import UploadModal from "@/components/UploadModal"
 
 export default function MyPhotosPage() {
   const [user, setUser] = useState<any>(null)
@@ -18,6 +19,7 @@ export default function MyPhotosPage() {
   const [editLoading, setEditLoading] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const [showUploadModal, setShowUploadModal] = useState(false)
 
   useEffect(() => {
     const fetchUserPhotos = async () => {
@@ -85,6 +87,12 @@ export default function MyPhotosPage() {
     }
   }
 
+  const onUpload = () => setShowUploadModal(true)
+
+  const handleUpload = () => {
+    // Implementation of handleUpload function
+  }
+
   if (loading) {
     return <div className="flex justify-center items-center min-h-[40vh] text-gray-400">加载中...</div>
   }
@@ -93,8 +101,11 @@ export default function MyPhotosPage() {
   }
 
   return (
-    <Layout user={user} onLogout={async () => { await supabase.auth.signOut(); window.location.reload(); }}>
+    <Layout user={user} onLogout={async () => { await supabase.auth.signOut(); window.location.reload(); }} onUpload={onUpload}>
       <div>
+        <header className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold">我的照片管理</h1>
+        </header>
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-gray-800">我的照片管理</h1>
           {photos.length > 0 && (
@@ -142,6 +153,13 @@ export default function MyPhotosPage() {
               <button className="w-full text-gray-400 hover:text-gray-600 mt-2" onClick={() => setShowEdit(false)}>关闭</button>
             </div>
           </div>
+        )}
+        {showUploadModal && (
+          <UploadModal
+            show={showUploadModal}
+            onClose={() => setShowUploadModal(false)}
+            onUpload={handleUpload}
+          />
         )}
       </div>
     </Layout>

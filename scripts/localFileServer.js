@@ -157,6 +157,9 @@ app.use((req, res, next) => {
 // 设置静态文件目录，用于提供照片访问
 app.use('/photos', express.static(path.join(__dirname, '../uploads')));
 
+// 管理员userId白名单
+const ADMIN_USER_IDS = ['32ca5c88-7477-4035-ba7f-dbf7327c915c'];
+
 // 配置文件存储
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -209,7 +212,7 @@ const storage = multer.diskStorage({
 const upload = multer({ 
   storage: storage,
   limits: {
-    fileSize: process.env.FILE_SIZE_LIMIT ? parseInt(process.env.FILE_SIZE_LIMIT) : 10 * 1024 * 1024, // 默认10MB
+    fileSize: 30 * 1024 * 1024, // 单文件最大30MB
   },
   fileFilter: function (req, file, cb) {
     // 只允许图片文件
@@ -236,7 +239,6 @@ app.use('/upload', (req, res, next) => {
 app.post('/upload', (req, res) => {
   console.log('[UPLOAD] 开始处理上传请求');
   
-  // 手动处理文件上传
   upload.single('file')(req, res, (err) => {
     if (err) {
       console.error('[UPLOAD] 上传处理错误:', err);
@@ -247,13 +249,10 @@ app.post('/upload', (req, res) => {
         code: err.code || 'UNKNOWN'
       });
     }
-    
-    // 如果没有文件被上传
     if (!req.file) {
       console.log('[UPLOAD] 未接收到文件');
       return res.status(400).json({ success: false, error: '未接收到文件' });
     }
-    
     // 调试输出请求体
     console.log('[UPLOAD] 上传成功，req.body:', req.body);
     console.log('[UPLOAD] 上传文件信息:', {
@@ -263,49 +262,64 @@ app.post('/upload', (req, res) => {
       size: req.file.size,
       path: req.file.path
     });
-    
     // 处理path可能是数组的情况，优先选带 uuid 的那一项
     let filePath = req.body.path;
     if (Array.isArray(filePath)) {
-      // 选第一个不是 anonymous 开头的
       filePath = filePath.find(p => typeof p === 'string' && !p.startsWith('anonymous/')) || filePath[0];
     }
     filePath = String(filePath);
-    
     try {
       // 处理其他字段可能是数组的情况
       let album_id = req.body.album_id;
       if (Array.isArray(album_id)) album_id = album_id[0];
-      
       let username = req.body.username;
       if (Array.isArray(username)) username = username[0];
-      
       // 生成目标路径
       const userId = filePath.split('/')[0];
       console.log(`[UPLOAD] 解析后的userId: ${userId}`);
-      
       const destPath = path.join(uploadsDir, filePath);
       console.log(`[UPLOAD] 目标路径: ${destPath}`);
-      
       // 确保目标目录存在
       const destDir = path.dirname(destPath);
       if (!fs.existsSync(destDir)) {
         fs.mkdirSync(destDir, { recursive: true });
         console.log(`[UPLOAD] 创建目标目录: ${destDir}`);
       }
-      
+      // ====== 新增：空间限制校验 ======
+      const userDir = path.join(uploadsDir, userId);
+      const isAdmin = ADMIN_USER_IDS.includes(userId);
+      if (!isAdmin) {
+        let used = 0;
+        if (fs.existsSync(userDir)) {
+          const files = fs.readdirSync(userDir);
+          for (const file of files) {
+            const stat = fs.statSync(path.join(userDir, file));
+            if (stat.isFile()) used += stat.size;
+          }
+        }
+        const MAX_STORAGE = 1024 * 1024 * 1024; // 1GB
+        if (used + req.file.size > MAX_STORAGE) {
+          // 超出空间限制，删除刚上传的临时文件
+          fs.unlinkSync(req.file.path);
+          return res.status(400).json({
+            success: false,
+            error: '已超出存储空间上限，无法上传新文件',
+            used,
+            max: MAX_STORAGE
+          });
+        }
+      }
+      // ====== END ======
       // 简单处理：直接移动文件
       fs.copyFileSync(req.file.path, destPath);
       console.log(`[UPLOAD] 文件已复制到: ${destPath}`);
       fs.unlinkSync(req.file.path);
       console.log(`[UPLOAD] 临时文件已删除: ${req.file.path}`);
-      
       // 构建文件URL
       const fileUrl = req.protocol + '://' + req.get('host') + '/photos/' + filePath;
       // 如果设置了SERVER_URL环境变量，则使用它构建URL
       const serverUrl = process.env.SERVER_URL || '';
       const publicUrl = serverUrl ? serverUrl + '/photos/' + filePath : fileUrl;
-      
       // 返回成功响应
       console.log(`[UPLOAD] 上传成功，返回响应`);
       res.json({

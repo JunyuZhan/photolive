@@ -351,6 +351,7 @@ export default function AlbumPage() {
   const [showCollaborators, setShowCollaborators] = useState(false)
   const [showLogs, setShowLogs] = useState(false)
   const [showUploadModal, setShowUploadModal] = useState(false)
+  const onUpload = () => setShowUploadModal(true)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -504,17 +505,17 @@ export default function AlbumPage() {
   }
 
   return (
-    <Layout user={user} onLogout={async () => { await supabase.auth.signOut(); window.location.reload(); }}>
+    <Layout user={user} onLogout={async () => { await supabase.auth.signOut(); window.location.reload(); }} onUpload={onUpload}>
       <div>
-        <header className="mb-6 sm:mb-8">
+        <header className="mb-4 sm:mb-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0">
-            <h1 className="text-2xl sm:text-3xl font-bold">{album.name}</h1>
-            <div className="flex items-center gap-2">
-              <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={() => setShowUploadModal(true)}>上传照片</button>
-              <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={() => setShowShare(true)}>生成外链</button>
-              <button className="bg-green-500 text-white px-4 py-2 rounded" onClick={() => setShowCollaborators(true)}>协作者管理</button>
-              <button className="bg-gray-700 text-white px-4 py-2 rounded" onClick={() => setShowLogs(true)}>统计/日志</button>
-              <Link href="/albums" className="text-blue-500 hover:underline text-base">返回相册列表</Link>
+            <h1 className="text-lg sm:text-2xl sm:font-bold font-semibold">{album.name}</h1>
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-2 w-full sm:w-auto">
+              <button className="bg-blue-500 text-white px-4 py-2 rounded text-base sm:text-base w-full sm:w-auto" onClick={onUpload}>上传照片</button>
+              <button className="bg-blue-500 text-white px-4 py-2 rounded text-base sm:text-base w-full sm:w-auto" onClick={() => setShowShare(true)}>生成外链</button>
+              <button className="bg-green-500 text-white px-4 py-2 rounded text-base sm:text-base w-full sm:w-auto" onClick={() => setShowCollaborators(true)}>协作者管理</button>
+              <button className="bg-gray-700 text-white px-4 py-2 rounded text-base sm:text-base w-full sm:w-auto" onClick={() => setShowLogs(true)}>统计/日志</button>
+              <Link href="/albums" className="text-blue-500 hover:underline text-base w-full sm:w-auto text-center">返回相册列表</Link>
             </div>
           </div>
           {album.description && (
